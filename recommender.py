@@ -20,8 +20,6 @@ n_gameIDs = df.gameID.unique().shape[0]
 from sklearn.model_selection import train_test_split
 train_data, test_data = train_test_split(df, test_size=0.2)
 
-print(type(train_data))
-
 # CREATE PIVOT TABLES
 all_data_ptable = pandas.pivot_table(df, index='userID', columns='gameID', values='rating', fill_value=0)
 train_data_ptable = pandas.pivot_table(train_data, index='userID', 
@@ -34,7 +32,12 @@ user_similarity = pairwise_distances(train_data_ptable, metric='cosine')
 item_similarity = pairwise_distances(train_data_ptable.T, metric='cosine')
 
 # PREDICTION MATRIX
-def predict(ratings_array, similarity, type='user'):
+''' 
+MATHJAX
+This is the formula applied in derive_prediction_matrix()
+\[ \hat{x}_{k,m} = \bar{x}_{k} + \frac{\sum\limits_{u_a} sim_u(u_k, u_a) (x_{a,m} - \bar{x}_{u_a})}{\sum\limits_{u_a}|sim_u(u_k, u_a)|} \]
+'''
+def derive_prediction_matrix(ratings_array, similarity, type='user'):
     if type == 'user':
         # Normalize user ratings
         mean_user_rating = ratings_array.mean(axis=1)
@@ -44,21 +47,15 @@ def predict(ratings_array, similarity, type='user'):
         pred = ratings_array.dot(similarity) / numpy.ratings_array([numpy.abs(similarity).sum(axis=1)])
     return pred
 
-# game_rating_array = numpy.array(train_data_ptable.T)
 train_data_array = numpy.array(train_data_ptable)
-user_prediction = predict(train_data_array, user_similarity, type='user')
-
-#item_prediction = predict(game_rating_array, item_similarity, type='item')
+user_prediction_matrix = derive_prediction_matrix(train_data_array, user_similarity, type='user')
+# game_rating_array = numpy.array(train_data_ptable.T)
+#item_prediction_matrix = derive_prediction_matrix(game_rating_array, item_similarity, type='item')
 
 #*********************************************************************************************
-# TAKE userID, gameID; RETURN predicted rating
-# should change array to dictionary with userID as keys?
-''' 
-MATHJAX
-This is the formula applied in predict()
-\[ \hat{x}_{k,m} = \bar{x}_{k} + \frac{\sum\limits_{u_a} sim_u(u_k, u_a) (x_{a,m} - \bar{x}_{u_a})}{\sum\limits_{u_a}|sim_u(u_k, u_a)|} \]
-'''
+# PREDICT rating GIVEN userID AND gameID
 # Working... Needs to account for user not in DB but has a rating array?
+
 def rating_prediction(userID, gameID):
     # Ensure userID has not already rated game
     assert(all_data_ptable[userID][gameID] == 0)
@@ -67,12 +64,6 @@ def rating_prediction(userID, gameID):
     gameRatingArray = numpy.array(all_data_ptable.T[gameID])
     
 rating_prediction(3, 5038)
-
-
-
-
-
-
 
 
 #**********************************************************************************************
@@ -86,34 +77,19 @@ rating_prediction(3, 5038)
 #     return sqrt(mean_squared_error(prediction, ground_truth))
 # 
 # test_data_array = numpy.array(test_data_ptable)
-# print('User-based CF RMSE: ' + str(rmse(user_prediction, test_data_array)))
-# print('Item-based CF RMSE: ' + str(rmse(item_prediction, test_data_array)))
+# print('User-based CF RMSE: ' + str(rmse(user_prediction_matrix, test_data_array)))
+# print('Item-based CF RMSE: ' + str(rmse(item_prediction_matrix, test_data_array)))
 
 #*********************************************************************************************
-# TEST KMEANS CLUSTERING
-# MAYBE cluster user_similarity?
+# SPARSITY of all ratings
 
-# from sklearn.cluster import KMeans
-# kmeans = KMeans()
-# kmeans.fit(train_data_array)
-# print(kmeans.predict([test_data_array[0]]))
-# print(kmeans.labels_)
-# centroids = kmeans.cluster_centers_
-
-# import matplotlib.pyplot as plt_
-# plt.scatter(centroids[:,0], centroids[:,1])
-# plt.scatter(test_data_array[:,0], test_data_array[:,1])
-# plt.show()
-#*********************************************************************************************
-# SPARSITY
-# Each intersection of userID and gameID as a potential data point
-non_zero_ratings = 0.0
-total_rating_opportunities = float(len(numpy.array(all_data_ptable).flatten()))
-
-for k in numpy.array(all_data_ptable).flatten():
-    if int(k) > 0:
-        non_zero_ratings += 1
-        
-sparsity = non_zero_ratings / total_rating_opportunities
-print(sparsity)
+# non_zero_ratings = 0.0
+# total_rating_opportunities = float(len(numpy.array(all_data_ptable).flatten()))
+#
+# for k in numpy.array(all_data_ptable).flatten():
+#     if int(k) > 0:
+#         non_zero_ratings += 1
+#         
+# sparsity = non_zero_ratings / total_rating_opportunities
+# print(sparsity)
 
