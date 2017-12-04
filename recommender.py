@@ -15,10 +15,12 @@ df = pandas.read_csv('boardgame-elite-users.csv', names=header)
 n_users = df.userID.unique().shape[0]
 n_gameIDs = df.gameID.unique().shape[0]
 
-# TRAIN / TEST DATA SPLIT
+# TRAIN / TEST DATA SPLIT random_state=1
 # should maybe grab some ideal test data (users with few ratings)
 from sklearn.model_selection import train_test_split
 train_data, test_data = train_test_split(df, test_size=0.2)
+
+print(type(train_data))
 
 # CREATE PIVOT TABLES
 all_data_ptable = pandas.pivot_table(df, index='userID', columns='gameID', values='rating', fill_value=0)
@@ -53,9 +55,10 @@ user_prediction = predict(train_data_array, user_similarity, type='user')
 # should change array to dictionary with userID as keys?
 ''' 
 MATHJAX
-This is the formula appliec in predict()
+This is the formula applied in predict()
 \[ \hat{x}_{k,m} = \bar{x}_{k} + \frac{\sum\limits_{u_a} sim_u(u_k, u_a) (x_{a,m} - \bar{x}_{u_a})}{\sum\limits_{u_a}|sim_u(u_k, u_a)|} \]
 '''
+# Working... Needs to account for user not in DB but has a rating array?
 def rating_prediction(userID, gameID):
     # Ensure userID has not already rated game
     assert(all_data_ptable[userID][gameID] == 0)
@@ -103,10 +106,14 @@ rating_prediction(3, 5038)
 # plt.show()
 #*********************************************************************************************
 # SPARSITY
-'''
-# note Python 2.something, update it, make sure functions operate the same
-sparsity = float(len(ratings.nonzero()[0]))
-sparsity /= (ratings.shape[0] * ratings.shape[1])
-sparsity *= 100
-print 'Sparsity: {:4.2f}%'.format(sparsity)
-'''
+# Each intersection of userID and gameID as a potential data point
+non_zero_ratings = 0.0
+total_rating_opportunities = float(len(numpy.array(all_data_ptable).flatten()))
+
+for k in numpy.array(all_data_ptable).flatten():
+    if int(k) > 0:
+        non_zero_ratings += 1
+        
+sparsity = non_zero_ratings / total_rating_opportunities
+print(sparsity)
+
