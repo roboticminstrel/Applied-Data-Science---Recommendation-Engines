@@ -15,10 +15,14 @@ df = pandas.read_csv('boardgame-elite-users.csv', names=header)
 n_users = df.userID.unique().shape[0]
 n_gameIDs = df.gameID.unique().shape[0]
 
-# TRAIN / TEST DATA SPLIT random_state=1
-# should maybe grab some ideal test data (users with few ratings)
+# TRAIN / TEST DATA SPLIT
 from sklearn.model_selection import train_test_split
-train_data, test_data = train_test_split(df, test_size=0.2)
+train_data, test_data = train_test_split(df, test_size=0.2, random_state=1)
+
+# MEMO which users in which split <======= WORKING
+# CONFIRM that behavior is deterministic, preserves order
+print(train_data.userID.unique())
+
 
 # CREATE PIVOT TABLES
 all_data_ptable = pandas.pivot_table(df, index='userID', columns='gameID', values='rating', fill_value=0)
@@ -34,7 +38,7 @@ item_similarity = pairwise_distances(train_data_ptable.T, metric='cosine')
 # PREDICTION MATRIX
 ''' 
 MATHJAX
-This is the formula applied in derive_prediction_matrix()
+This is the formula applied below in derive_prediction_matrix()
 \[ \hat{x}_{k,m} = \bar{x}_{k} + \frac{\sum\limits_{u_a} sim_u(u_k, u_a) (x_{a,m} - \bar{x}_{u_a})}{\sum\limits_{u_a}|sim_u(u_k, u_a)|} \]
 '''
 def derive_prediction_matrix(ratings_array, similarity, type='user'):
@@ -42,7 +46,9 @@ def derive_prediction_matrix(ratings_array, similarity, type='user'):
         # Normalize user ratings
         mean_user_rating = ratings_array.mean(axis=1)
         ratings_diff = (ratings_array - mean_user_rating[:, numpy.newaxis])
+        # Generate predictions
         pred = mean_user_rating[:, numpy.newaxis] + similarity.dot(ratings_diff) / numpy.array([numpy.abs(similarity).sum(axis=1)]).T
+    # For item similarity, not currently implemented
     elif type == 'item':
         pred = ratings_array.dot(similarity) / numpy.ratings_array([numpy.abs(similarity).sum(axis=1)])
     return pred
@@ -85,11 +91,11 @@ rating_prediction(3, 5038)
 
 # non_zero_ratings = 0.0
 # total_rating_opportunities = float(len(numpy.array(all_data_ptable).flatten()))
-#
+# 
 # for k in numpy.array(all_data_ptable).flatten():
 #     if int(k) > 0:
 #         non_zero_ratings += 1
 #         
-# sparsity = non_zero_ratings / total_rating_opportunities
-# print(sparsity)
+# sparsity = 1 - (non_zero_ratings / total_rating_opportunities)
+# print('Sparsity : ',sparsity)
 
