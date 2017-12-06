@@ -1,33 +1,16 @@
-'''
-SOME RESOURCES
-https://blog.ethanrosenthal.com/2015/11/02/intro-to-collaborative-filtering/
-https://stats.stackexchange.com/questions/28406/is-cosine-similarity-a-classification-or-a-clustering-technique
-https://cambridgespark.com/content/tutorials/implementing-your-own-recommender-systems-in-Python/index.html
-https://www.quora.com/Can-scikit-learn-be-used-to-build-a-recommendation-system
-https://muricoca.github.io/crab/
-'''
-
 import numpy
 import pandas
 
 header = ['userID', 'gameID', 'rating']
 df = pandas.read_csv('boardgame-elite-users.csv', names=header)
-n_users = df.userID.unique().shape[0]
-n_gameIDs = df.gameID.unique().shape[0]
 
 # TRAIN / TEST DATA SPLIT
 from sklearn.model_selection import train_test_split
 train_data, test_data = train_test_split(df, test_size=0.2, random_state=1)
 
-# MEMO which users in which split <======= WORKING
-# CONFIRM that behavior is deterministic, preserves order
-print(train_data.userID.unique())
-
-
 # CREATE PIVOT TABLES
 all_data_ptable = pandas.pivot_table(df, index='userID', columns='gameID', values='rating', fill_value=0)
-train_data_ptable = pandas.pivot_table(train_data, index='userID', 
-columns='gameID', values='rating', fill_value=0)
+train_data_ptable = pandas.pivot_table(train_data, index='userID', columns='gameID', values='rating', fill_value=0)
 test_data_ptable = pandas.pivot_table(test_data, index='userID', columns='gameID', values='rating', fill_value=0)
 
 # FIND USERS AND ITEMS THAT ARE SIMILAR
@@ -53,8 +36,7 @@ def derive_prediction_matrix(ratings_array, similarity, type='user'):
         pred = ratings_array.dot(similarity) / numpy.ratings_array([numpy.abs(similarity).sum(axis=1)])
     return pred
 
-train_data_array = numpy.array(train_data_ptable)
-user_prediction_matrix = derive_prediction_matrix(train_data_array, user_similarity, type='user')
+user_prediction_matrix = derive_prediction_matrix(numpy.array(train_data_ptable), user_similarity, type='user')
 # game_rating_array = numpy.array(train_data_ptable.T)
 #item_prediction_matrix = derive_prediction_matrix(game_rating_array, item_similarity, type='item')
 
@@ -85,17 +67,3 @@ rating_prediction(3, 5038)
 # test_data_array = numpy.array(test_data_ptable)
 # print('User-based CF RMSE: ' + str(rmse(user_prediction_matrix, test_data_array)))
 # print('Item-based CF RMSE: ' + str(rmse(item_prediction_matrix, test_data_array)))
-
-#*********************************************************************************************
-# SPARSITY of all ratings
-
-# non_zero_ratings = 0.0
-# total_rating_opportunities = float(len(numpy.array(all_data_ptable).flatten()))
-# 
-# for k in numpy.array(all_data_ptable).flatten():
-#     if int(k) > 0:
-#         non_zero_ratings += 1
-#         
-# sparsity = 1 - (non_zero_ratings / total_rating_opportunities)
-# print('Sparsity : ',sparsity)
-
