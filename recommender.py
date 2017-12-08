@@ -39,14 +39,23 @@ user_prediction_matrix = derive_prediction_matrix(numpy.array(train_data_ptable)
 #*********************************************************************************************
 # PREDICT rating GIVEN userID AND gameID
 # Users not already in train_data_ptable need to be added and run through derive_prediction_matrix
+# Need to normalize user_prediction_matrix (rating is between -3 and 3)
 def estimate_rating_prediction(userID, gameID):
     for i, user in enumerate(train_data_ptable.index.values):
         if user == userID:
             for j, game in enumerate(train_data_ptable.columns):
                 if game == gameID:
                     return user_prediction_matrix[i][j]
+assert(type(estimate_rating_prediction(272, 118)) == numpy.float64)
 
-print("userID 272 would rate gameID 118 at: ", estimate_rating_prediction(272, 118))
+# Takes an int userID and returns a list of ints (gameIDs)
+def get_all_suggestions(userID):
+    suggestions = []
+    for k in train_data_ptable.columns:
+        if estimate_rating_prediction(userID, k) > 2:
+            suggestions.append(k)
+    return suggestions
+assert(type(get_all_suggestions(272)) == list)
 #**********************************************************************************************
 # EVALUATION, RMSE
 
@@ -60,4 +69,3 @@ def rmse(prediction, ground_truth):
 test_data_array = numpy.array(test_data_ptable)
 print('User-based CF RMSE: ' + str(rmse(user_prediction_matrix, test_data_array)))
 # print('Item-based CF RMSE: ' + str(rmse(item_prediction_matrix, test_data_array)))
-
