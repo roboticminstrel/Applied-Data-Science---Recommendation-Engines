@@ -1,3 +1,13 @@
+# get alt hosting instead of git/github for data (to thin ledger at every instance)
+# make estimate_rating_prediction() account for users not in train_data
+# use cross-validation if it can maintain order
+# do something (implement correctly or get rid of) with item-similarity stuff
+# Need to normalize user_prediction_matrix (rating is between -3 and 3)
+# make get_all_suggestions return 'top N' instead of 'rating > N'
+# best way to add new user to train_data?
+# what is the type of data received when receiving a new userID with ratings array?
+# functional? what are states I am tracking?
+# user mean ... divided by standard deviation
 import numpy
 import pandas
 
@@ -38,9 +48,13 @@ user_prediction_matrix = derive_prediction_matrix(numpy.array(train_data_ptable)
 
 #*********************************************************************************************
 # PREDICT rating GIVEN userID AND gameID
-# Users not already in train_data_ptable need to be added and run through derive_prediction_matrix
-# Need to normalize user_prediction_matrix (rating is between -3 and 3)
+# gameID must be in data
+# if userID is not in data, need an array of ratings for that user
 def estimate_rating_prediction(userID, gameID):
+    # if userID not in train_data, call functions to 'retrain'
+    if userID not in train_data_ptable.index.values:
+        # WORKING <===
+        pass
     for i, user in enumerate(train_data_ptable.index.values):
         if user == userID:
             for j, game in enumerate(train_data_ptable.columns):
@@ -56,9 +70,9 @@ def get_all_suggestions(userID):
             suggestions.append(k)
     return suggestions
 assert(type(get_all_suggestions(272)) == list)
+
 #**********************************************************************************************
 # EVALUATION, RMSE
-
 from sklearn.metrics import mean_squared_error
 from math import sqrt
 def rmse(prediction, ground_truth):
@@ -66,6 +80,5 @@ def rmse(prediction, ground_truth):
     ground_truth = ground_truth[ground_truth.nonzero()].flatten()
     return sqrt(mean_squared_error(prediction, ground_truth))
 
-test_data_array = numpy.array(test_data_ptable)
-print('User-based CF RMSE: ' + str(rmse(user_prediction_matrix, test_data_array)))
+print('User-based CF RMSE: ' + str(rmse(user_prediction_matrix, numpy.array(test_data_ptable))))
 # print('Item-based CF RMSE: ' + str(rmse(item_prediction_matrix, test_data_array)))
