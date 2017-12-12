@@ -1,18 +1,19 @@
-# get alt hosting instead of git/github for data (to thin ledger at every instance)
 # make estimate_rating_prediction() account for users not in train_data
-# use cross-validation if it can maintain order
+# use cross-validation
 # do something (implement correctly or get rid of) with item-similarity stuff
-# Need to normalize user_prediction_matrix (rating is between -3 and 3)
-# make get_all_suggestions return 'top N' instead of 'rating > N'
-# best way to add new user to train_data?
 # what is the type of data received when receiving a new userID with ratings array?
 # functional? what are states I am tracking?
 # user mean ... divided by standard deviation
+# default to guess 7
+# dive-into.info survey, hit 'up'
+# for each row of ratings matrix, find each nonzero, divide by, (in derive_prediction_matrix)
+# khan academy ... random variables
+# add back in mean user rating
 import numpy
 import pandas
 
-header = ['userID', 'gameID', 'rating']
-df = pandas.read_csv('boardgame-elite-users.csv', names=header)
+# header = ['userID', 'gameID', 'rating']
+df = pandas.read_csv('inputs/boardgame-elite-users.csv').rename(columns = {'Compiled from boardgamegeek.com by Matt Borthwick':'userID'})
 
 # TRAIN / TEST DATA SPLIT
 from sklearn.model_selection import train_test_split
@@ -26,7 +27,7 @@ test_data_ptable = pandas.pivot_table(test_data, index='userID', columns='gameID
 # FIND USERS AND ITEMS THAT ARE SIMILAR
 from sklearn.metrics.pairwise import pairwise_distances
 user_similarity = pairwise_distances(train_data_ptable, metric='cosine')
-item_similarity = pairwise_distances(train_data_ptable.T, metric='cosine')
+# item_similarity = pairwise_distances(train_data_ptable.T, metric='cosine')
 
 # PREDICTION MATRIX
 def derive_prediction_matrix(ratings_array, similarity, type='user'):
@@ -35,11 +36,19 @@ def derive_prediction_matrix(ratings_array, similarity, type='user'):
         # subtract mean rating from each rating
         ratings_diff = (ratings_array - mean_user_rating[:, numpy.newaxis])
         # Generate predictions
-        pred = mean_user_rating[:, numpy.newaxis] + similarity.dot(ratings_diff) / numpy.array([numpy.abs(similarity).sum(axis=1)]).T
+        # should divide by the commonly rated gameIDs, pairwise mult
+        pred = mean_user_rating[:, numpy.newaxis] + similarity.dot(ratings_diff) / numpy.array([numpy.abs(user_similarity).sum(axis=1)]).T
     # For item similarity, not currently implemented
+        pred = pred + mean_user_rating[:, numpy.newaxis]
     elif type == 'item':
-        pred = ratings_array.dot(similarity) / numpy.ratings_array([numpy.abs(similarity).sum(axis=1)])
+        pred = ratings.dot(similarity) / np.array([np.abs(similarity).sum(axis=1)])
     return pred
+
+# new formula to apply in derive_prediction_matrix
+# print(numpy.count_nonzero(numpy.array(train_data_ptable).T, axis = 1)[0])
+
+# OLD formula below (without index)
+# print(numpy.array([numpy.abs(user_similarity).sum(axis=1)]).T[0])
 
 user_prediction_matrix = derive_prediction_matrix(numpy.array(train_data_ptable), user_similarity, type='user')
 
@@ -64,12 +73,13 @@ assert(type(estimate_rating_prediction(272, 118)) == numpy.float64)
 
 # Takes an int userID and returns a list of ints (gameIDs)
 def get_all_suggestions(userID):
-    suggestions = []
-    for k in train_data_ptable.columns:
-        if estimate_rating_prediction(userID, k) > 2:
-            suggestions.append(k)
-    return suggestions
-assert(type(get_all_suggestions(272)) == list)
+    rating_game_tuples = []
+    for gameID in train_data_ptable.columns:
+        rating = estimate_rating_prediction(userID, gameID)
+        rating_game_tuples.append((rating, gameID))
+    # return gameID list of highest 8 predicted ratings
+    return [x[1] for x in sorted(rating_game_tuples, reverse = True)[:9]]
+assert(type(get_all_suggestions(272) == list))
 
 #**********************************************************************************************
 # EVALUATION, RMSE
