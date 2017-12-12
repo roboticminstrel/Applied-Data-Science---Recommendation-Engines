@@ -4,7 +4,6 @@
 # what is the type of data received when receiving a new userID with ratings array?
 # functional? what are states I am tracking?
 # user mean ... divided by standard deviation
-# default to guess 7
 # dive-into.info survey, hit 'up'
 # for each row of ratings matrix, find each nonzero, divide by, (in derive_prediction_matrix)
 # khan academy ... random variables
@@ -37,9 +36,11 @@ def derive_prediction_matrix(ratings_array, similarity, type='user'):
         ratings_diff = (ratings_array - mean_user_rating[:, numpy.newaxis])
         # Generate predictions
         # should divide by the commonly rated gameIDs, pairwise mult
-        pred = mean_user_rating[:, numpy.newaxis] + similarity.dot(ratings_diff) / numpy.array([numpy.abs(user_similarity).sum(axis=1)]).T
+        pred = mean_user_rating[:, numpy.newaxis] + similarity.dot(ratings_diff) / numpy.count_nonzero(numpy.array(train_data_ptable).T, axis = 1)
     # For item similarity, not currently implemented
         pred = pred + mean_user_rating[:, numpy.newaxis]
+        # Weighted sevens hack
+        pred = (pred + numpy.full(pred.shape, 7)) / 2
     elif type == 'item':
         pred = ratings.dot(similarity) / np.array([np.abs(similarity).sum(axis=1)])
     return pred
@@ -91,4 +92,8 @@ def rmse(prediction, ground_truth):
     return sqrt(mean_squared_error(prediction, ground_truth))
 
 print('User-based CF RMSE: ' + str(rmse(user_prediction_matrix, numpy.array(test_data_ptable))))
+all_sevens_matrix = numpy.full((199, 402), 7)
+print('All sevens rating system is RMSE ' + str(rmse(all_sevens_matrix, numpy.array(test_data_ptable))))
+weighted_sevens_matrix = (all_sevens_matrix + user_prediction_matrix) / 2
+print('Weighted sevens rating system is RMSE ' + str(rmse(weighted_sevens_matrix, numpy.array(test_data_ptable))))
 # print('Item-based CF RMSE: ' + str(rmse(item_prediction_matrix, test_data_array)))
