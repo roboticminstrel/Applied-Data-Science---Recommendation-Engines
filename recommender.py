@@ -1,84 +1,102 @@
-# get alt hosting instead of git/github for data (to thin ledger at every instance)
-# make estimate_rating_prediction() account for users not in train_data
-# use cross-validation if it can maintain order
-# do something (implement correctly or get rid of) with item-similarity stuff
-# Need to normalize user_prediction_matrix (rating is between -3 and 3)
-# make get_all_suggestions return 'top N' instead of 'rating > N'
-# best way to add new user to train_data?
-# what is the type of data received when receiving a new userID with ratings array?
-# functional? what are states I am tracking?
-# user mean ... divided by standard deviation
+# Load external data file into "df"
+# Ensure proper header/index/column labeling as "userID", "gameID", "rating"
+# Call predict_rating(userID, gameID)
+# That's it! You can return the top eight suggested gameID with get_top_suggestions(userID)
+# Data objects are "df", "all_data_ptable", "ratings_array", "user_similarity", "user_prediction_matrix"
+# Data objects stay the same. New values are returned by all functions.
 import numpy
 import pandas
 
-header = ['userID', 'gameID', 'rating']
-df = pandas.read_csv('boardgame-elite-users.csv', names=header)
+# header = ['userID', 'gameID', 'rating']
+df = pandas.read_csv('inputs/withheld-ratings.csv').rename(columns = {'Compiled from boardgamegeek.com by Matt Borthwick':'userID'})
 
-# TRAIN / TEST DATA SPLIT
-from sklearn.model_selection import train_test_split
-train_data, test_data = train_test_split(df, test_size=0.2, random_state=1)
-
-# CREATE PIVOT TABLES
 all_data_ptable = pandas.pivot_table(df, index='userID', columns='gameID', values='rating', fill_value=0)
-train_data_ptable = pandas.pivot_table(train_data, index='userID', columns='gameID', values='rating', fill_value=0)
-test_data_ptable = pandas.pivot_table(test_data, index='userID', columns='gameID', values='rating', fill_value=0)
+ratings_array = numpy.array(all_data_ptable)
 
-# FIND USERS AND ITEMS THAT ARE SIMILAR
+# For Testing
+df2 = pandas.read_csv('inputs/boardgame-elite-users.csv').rename(columns = {'Compiled from boardgamegeek.com by Matt Borthwick':'userID'})
+all_data_ptable2 = pandas.pivot_table(df2, index='userID', columns='gameID', values='rating', fill_value=0)
+ratings_array2 = numpy.array(all_data_ptable2)
+
 from sklearn.metrics.pairwise import pairwise_distances
-user_similarity = pairwise_distances(train_data_ptable, metric='cosine')
-item_similarity = pairwise_distances(train_data_ptable.T, metric='cosine')
+user_similarity = pairwise_distances(ratings_array, metric='cosine')
 
-# PREDICTION MATRIX
-def derive_prediction_matrix(ratings_array, similarity, type='user'):
-    if type == 'user':
-        mean_user_rating = ratings_array.mean(axis=1)
-        # subtract mean rating from each rating
-        ratings_diff = (ratings_array - mean_user_rating[:, numpy.newaxis])
-        # Generate predictions
-        pred = mean_user_rating[:, numpy.newaxis] + similarity.dot(ratings_diff) / numpy.array([numpy.abs(similarity).sum(axis=1)]).T
-    # For item similarity, not currently implemented
-    elif type == 'item':
-        pred = ratings_array.dot(similarity) / numpy.ratings_array([numpy.abs(similarity).sum(axis=1)])
+# Takes a 2d array (199, 402) and a 2d array (199, 199), returns a 2d array (199, 402) of the predicted rating
+# for each userID-gameID pair
+def derive_prediction_matrix(ratings_arr, user_simil):
+    mean_user_rating = ratings_arr.mean(axis=1)
+    ratings_minus_mean = (ratings_arr - mean_user_rating[:, numpy.newaxis])
+    pred = mean_user_rating[:, numpy.newaxis] + user_simil.dot(ratings_minus_mean) / numpy.count_nonzero(numpy.array(ratings_arr).T, axis = 1)
+    # Add back mean_user_rating
+    pred = pred + mean_user_rating[:, numpy.newaxis]
     return pred
 
-user_prediction_matrix = derive_prediction_matrix(numpy.array(train_data_ptable), user_similarity, type='user')
+user_prediction_matrix = derive_prediction_matrix(ratings_array, user_similarity)
 
-# game_rating_array = numpy.array(train_data_ptable.T)
-#item_prediction_matrix = derive_prediction_matrix(game_rating_array, item_similarity, type='item')
+# Helper functions, round to a precision
+def round_to(n, precision):
+    correction = 0.5 if n >= 0 else -0.5
+    return int( n/precision+correction ) * precision
+def round_to_p5(n):
+    return round_to(n, 0.5)
+# Takes a float, ceilings it at 10.0, returns float
+def max_ten(some_float):
+    return 10.0 if some_float > 10 else some_float
 
-#*********************************************************************************************
-# PREDICT rating GIVEN userID AND gameID
-# gameID must be in data
-# if userID is not in data, need an array of ratings for that user
-def estimate_rating_prediction(userID, gameID):
-    # if userID not in train_data, call functions to 'retrain'
-    if userID not in train_data_ptable.index.values:
-        # WORKING <===
-        pass
-    for i, user in enumerate(train_data_ptable.index.values):
-        if user == userID:
-            for j, game in enumerate(train_data_ptable.columns):
-                if game == gameID:
-                    return user_prediction_matrix[i][j]
-assert(type(estimate_rating_prediction(272, 118)) == numpy.float64)
+# Takes 2 ints, returns a float rounded to nearest half (1.0, 1.5, 2.0)
+def predict_rating(userID, gameID):
+    user_location = numpy.where(all_data_ptable.index.values == userID)
+    game_location = numpy.where(all_data_ptable.columns == gameID)
+    return max_ten(round_to_p5(user_prediction_matrix[user_location, game_location]))
 
-# Takes an int userID and returns a list of ints (gameIDs)
-def get_all_suggestions(userID):
-    suggestions = []
-    for k in train_data_ptable.columns:
-        if estimate_rating_prediction(userID, k) > 2:
-            suggestions.append(k)
-    return suggestions
-assert(type(get_all_suggestions(272)) == list)
+# Takes an int and returns a list of 8 ints (gameIDs)
+def get_top_suggestions(userID):
+    rating_game_tuples = []
+    for gameID in all_data_ptable.columns:
+        if all_data_ptable.loc[(userID, gameID)] < .1:
+            rating = predict_rating(userID, gameID)
+            rating_game_tuples.append((rating, gameID))
+    # return gameID list of highest 8 predicted ratings
+    return [x[1] for x in sorted(rating_game_tuples, reverse = True)[:9]]
+    
+# Return a matrix with both predictions for unrated gameIDs AND ratings of gameIDs already rated
+def correct_for_existing_ratings(pred_matrix, ratings_arr):
+    new_pred = []
+    for i, vec in enumerate(ratings_arr):
+        for j, val in enumerate(ratings_arr[i]):
+            if ratings_arr[i][j] > 0:
+                new_pred.append(ratings_arr[i][j])
+            else:
+                new_pred.append(pred_matrix[i][j])
+    new_pred = numpy.array(new_pred)
+    new_pred.shape = pred_matrix.shape
+    return new_pred
+
+
+
+print(get_top_suggestions(388))
+print(predict_rating(388, 39463))
+print(predict_rating(388, 35677))
+print(predict_rating(388, 17226))
+print(predict_rating(388, 25613))
+print(predict_rating(388, 96848))
+print(predict_rating(430, 31260))
+print(predict_rating(430, 25613))
+print(predict_rating(430, 161936))
+print(predict_rating(430, 188))
+print(predict_rating(3080, 36932))
+print(predict_rating(3080, 9209))
+print(predict_rating(3080, 161936))
+print(predict_rating(3080, 90137))
 
 #**********************************************************************************************
+# TESTS / PRINTS / ASSERTS
+# print(list(zip([predict_rating(272, x) for x in train_data_ptable.columns], list(train_data_ptable.loc[(272,)]))))
+#**********************************************************************************************
 # EVALUATION, RMSE
-from sklearn.metrics import mean_squared_error
 from math import sqrt
-def rmse(prediction, ground_truth):
-    prediction = prediction[ground_truth.nonzero()].flatten()
-    ground_truth = ground_truth[ground_truth.nonzero()].flatten()
-    return sqrt(mean_squared_error(prediction, ground_truth))
-
-print('User-based CF RMSE: ' + str(rmse(user_prediction_matrix, numpy.array(test_data_ptable))))
-# print('Item-based CF RMSE: ' + str(rmse(item_prediction_matrix, test_data_array)))
+def rmse(predictions, targets):
+    return numpy.sqrt(((predictions - targets) ** 2).mean())
+print('RMSE with all sevens is ', rmse(numpy.full(ratings_array.shape, 7), ratings_array2))
+print('RMSE with pred matrix is ', rmse(user_prediction_matrix, ratings_array2))
+print('RMSE with corrected pred matrix is ', rmse(correct_for_existing_ratings(user_prediction_matrix, ratings_array), ratings_array2))
